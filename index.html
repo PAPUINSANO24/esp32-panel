@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo Fotovoltaico ESP32</title>
+    <!-- Tailwind CSS desde CDN para estilos rápidos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para la gráfica de líneas en vivo -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #0d131d;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        .card-bg {
+            background-color: #161f2e;
+            border: 1px solid #233147;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- TARJETAS SUPERIORES DE MEDICIÓN -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Voltaje -->
+            <div class="card-bg rounded-xl p-5 shadow-lg">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">Voltaje (Captura de Luz)</span>
+                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div class="text-4xl font-extrabold text-white my-3" id="txt-voltaje">0.88 V</div>
+                <div class="inline-block bg-[#0f172a] text-xs px-3 py-1.5 rounded-lg border border-slate-700 font-medium text-slate-300" id="badge-voltaje">
+                    ℹ️ Noche / Panel Apagado
+                </div>
+            </div>
+
+            <!-- Corriente -->
+            <div class="card-bg rounded-xl p-5 shadow-lg">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">Corriente (Flujo)</span>
+                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                </div>
+                <div class="text-4xl font-extrabold text-amber-400 my-3" id="txt-corriente">0.00 A</div>
+                <div class="inline-block bg-[#0f172a] text-xs px-3 py-1.5 rounded-lg border border-slate-700 font-medium text-amber-300" id="badge-corriente">
+                    ℹ️ Bajo Consumo
+                </div>
+            </div>
+
+            <!-- Potencia -->
+            <div class="card-bg rounded-xl p-5 shadow-lg">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">Potencia (Rendimiento)</span>
+                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path></svg>
+                </div>
+                <div class="text-4xl font-extrabold text-white my-3" id="txt-potencia">0.00 W</div>
+                <div class="inline-block bg-[#0f172a] text-xs px-3 py-1.5 rounded-lg border border-slate-700 font-medium text-slate-300" id="badge-potencia">
+                    ℹ️ Generación Mínima
+                </div>
+            </div>
+
+        </div>
+
+        <!-- SECCIÓN DE GRÁFICA EN VIVO -->
+        <div class="card-bg rounded-xl p-6 shadow-lg">
+            <h2 class="text-xl font-bold mb-4 text-white">Historial en Vivo</h2>
+            <div class="relative h-80 w-full">
+                <canvas id="liveChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE CONFIGURACIÓN Y ACTUALIZACIÓN DE DATOS -->
+    <script>
+        // Configuración de Chart.js
+        const ctx = document.getElementById('liveChart').getContext('2d');
+        
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Marcas de tiempo (HH:MM:SS)
+                datasets: [
+                    {
+                        label: 'Voltaje (V)',
+                        borderColor: '#f59e0b', // Naranja/Amarillo
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        data: [],
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Corriente (A)',
+                        borderColor: '#10b981', // Verde
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        data: [],
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Potencia (W)',
+                        borderColor: '#38bdf8', // Azul
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        data: [],
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8' },
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f8fafc' } }
+                }
+            }
+        });
+
+        // REEMPLAZA ESTA URL CON LA IP LOCAL DE TU ESP32 O TU ENDPOINT MQTT/SERVER
+        const ESP32_IP = "http://192.168.1.100/datos"; 
+
+        async function obtenerDatosESP32() {
+            try {
+                // Petición al ESP32
+                const res = await fetch(ESP32_IP);
+                const data = await res.json();
+
+                actualizarUI(data.voltaje, data.corriente, data.potencia);
+            } catch (err) {
+                console.warn("No se pudo conectar al ESP32. Mostrando simulación de prueba...");
+                // Simulación en caso de que el ESP32 no esté en línea
+                let vSim = (Math.random() * (4.0 - 0.8) + 0.8);
+                let iSim = vSim > 2.0 ? (Math.random() * 1.5) : 0;
+                let pSim = vSim * iSim;
+                actualizarUI(vSim, iSim, pSim);
+            }
+        }
+
+        function actualizarUI(v, i, p) {
+            // Actualizar tarjetas
+            document.getElementById('txt-voltaje').innerText = v.toFixed(2) + " V";
+            document.getElementById('txt-corriente').innerText = i.toFixed(2) + " A";
+            document.getElementById('txt-potencia').innerText = p.toFixed(2) + " W";
+
+            document.getElementById('badge-voltaje').innerText = v < 1.0 ? "ℹ️ Noche / Panel Apagado" : "☀️ Panel Generando";
+            document.getElementById('badge-corriente').innerText = i === 0 ? "ℹ️ Bajo Consumo" : "⚡ Carga Activa";
+            document.getElementById('badge-potencia').innerText = p < 0.5 ? "ℹ️ Generación Mínima" : "📈 Alto Rendimiento";
+
+            // Actualizar gráfica
+            const horaActual = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            if (chart.data.labels.length > 10) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+                chart.data.datasets[2].data.shift();
+            }
+
+            chart.data.labels.push(horaActual);
+            chart.data.datasets[0].data.push(v);
+            chart.data.datasets[1].data.push(i);
+            chart.data.datasets[2].data.push(p);
+
+            chart.update();
+        }
+
+        // Consultar cada 3 segundos
+        setInterval(obtenerDatosESP32, 3000);
+    </script>
+</body>
+</html>
